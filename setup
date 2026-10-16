@@ -7,9 +7,10 @@ SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 
 mkdir -p "$BIN_DIR" "$SYSTEMD_USER_DIR"
 
-chmod +x "$PLUGIN_DIR/crash-manager" "$PLUGIN_DIR/omarchy-crash-watch"
+chmod +x "$PLUGIN_DIR/crashbar" "$PLUGIN_DIR/omarchy-crash-watch"
 
-ln -sf "$PLUGIN_DIR/crash-manager" "$BIN_DIR/omarchy-crash-manager"
+ln -sf "$PLUGIN_DIR/crashbar" "$BIN_DIR/crashbar"
+ln -sf "$PLUGIN_DIR/crashbar" "$BIN_DIR/omarchy-crashbar"
 ln -sf "$PLUGIN_DIR/omarchy-crash-watch" "$BIN_DIR/omarchy-crash-watch"
 
 cat > "$SYSTEMD_USER_DIR/omarchy-crash-watch.service" <<UNIT

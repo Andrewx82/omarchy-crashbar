@@ -67,7 +67,7 @@ def notify_shell_crash(comm, pid, exe, sig):
             [
                 "omarchy-shell",
                 "-q",
-                "omarchy-crashes",
+                "omarchy-crashbar",
                 "notifyCrash",
                 str(comm),
                 str(pid),
@@ -84,7 +84,7 @@ def notify_shell_crash(comm, pid, exe, sig):
 def notify_shell_refresh():
     try:
         subprocess.run(
-            ["omarchy-shell", "-q", "omarchy-crashes", "refresh"],
+            ["omarchy-shell", "-q", "omarchy-crashbar", "refresh"],
             check=False,
             timeout=2,
         )
@@ -198,7 +198,7 @@ def main():
         list_crashes()
     elif cmd in ("add", "record"):
         if len(sys.argv) < 6:
-            print("Usage: crash-manager add <comm> <pid> <exe> <signal> [timestamp]", file=sys.stderr)
+            print("Usage: crashbar add <comm> <pid> <exe> <signal> [timestamp]", file=sys.stderr)
             sys.exit(1)
         comm = sys.argv[2]
         pid = sys.argv[3]
@@ -208,7 +208,7 @@ def main():
         add_crash(comm, pid, exe, sig, ts)
     elif cmd in ("dismiss", "--dismiss"):
         if len(sys.argv) < 3:
-            print("Usage: crash-manager dismiss <id>", file=sys.stderr)
+            print("Usage: crashbar dismiss <id>", file=sys.stderr)
             sys.exit(1)
         dismiss_crash(sys.argv[2])
     elif cmd in ("dismiss-all", "--dismiss-all", "clear"):

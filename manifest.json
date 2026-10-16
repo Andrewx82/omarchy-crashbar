@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "omarchy-crashes",
-  "name": "Crashes",
+  "id": "omarchy-crashbar",
+  "name": "Crashbar",
   "version": "0.1.0",
   "author": "Andrew",
-  "description": "Crash alerts and undismissed crash list for the Omarchy status bar",
+  "description": "Quiet in-bar crash alerts and interactive undismissed crash history for Omarchy",
   "kinds": [
     "bar-widget"
   ],
@@ -12,8 +12,8 @@
     "barWidget": "Widget.qml"
   },
   "barWidget": {
-    "displayName": "Crashes",
-    "description": "Status bar crash alert and undismissed crash list",
+    "displayName": "Crashbar",
+    "description": "Quiet in-bar crash alerts and interactive undismissed crash history",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "left"

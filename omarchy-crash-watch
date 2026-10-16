@@ -19,10 +19,12 @@ announce() {
   omarchy-notification-wait 5 >/dev/null 2>&1 || true
 
   # Record crash and notify status bar widget on the left
-  if command -v omarchy-crash-manager >/dev/null 2>&1; then
-    omarchy-crash-manager add "$comm" "$pid" "$exe" "$signal"
-  elif [[ -x "$HOME/.config/omarchy/plugins/omarchy-crashes/crash-manager" ]]; then
-    "$HOME/.config/omarchy/plugins/omarchy-crashes/crash-manager" add "$comm" "$pid" "$exe" "$signal"
+  if command -v crashbar >/dev/null 2>&1; then
+    crashbar add "$comm" "$pid" "$exe" "$signal"
+  elif command -v omarchy-crashbar >/dev/null 2>&1; then
+    omarchy-crashbar add "$comm" "$pid" "$exe" "$signal"
+  elif [[ -x "$HOME/.config/omarchy/plugins/omarchy-crashbar/crashbar" ]]; then
+    "$HOME/.config/omarchy/plugins/omarchy-crashbar/crashbar" add "$comm" "$pid" "$exe" "$signal"
   fi
 }
 
@@ -53,7 +55,7 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     [[ -n $ignore_pattern && $name =~ $ignore_pattern ]] && continue
 
     # Never announce our own machinery
-    [[ $name == omarchy-crash-* || $name == omarchy-agent-* ]] && continue
+    [[ $name == omarchy-crash-* || $name == omarchy-agent-* || $name == crashbar || $name == omarchy-crashbar ]] && continue
 
     now=$EPOCHSECONDS
     (((now - ${last_notified[$name]:-0}) < dedupe_seconds)) && continue

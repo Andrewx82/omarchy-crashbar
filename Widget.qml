@@ -7,8 +7,8 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "omarchy-crashes"
-  ipcTarget: "omarchy-crashes"
+  moduleName: "omarchy-crashbar"
+  ipcTarget: "omarchy-crashbar"
   manageIpc: false
 
   property bool notificationActive: false
@@ -17,7 +17,7 @@ Panel {
   property int undismissedCount: 0
   property var crashesList: []
 
-  readonly property string crashManagerBin: decodeURIComponent(Qt.resolvedUrl("crash-manager").toString().replace(/^file:\/\//, ""))
+  readonly property string crashManagerBin: decodeURIComponent(Qt.resolvedUrl("crashbar").toString().replace(/^file:\/\//, ""))
   readonly property string setupBin: decodeURIComponent(Qt.resolvedUrl("setup").toString().replace(/^file:\/\//, ""))
 
   Process {
@@ -74,7 +74,7 @@ Panel {
   }
 
   IpcHandler {
-    target: "omarchy-crashes"
+    target: "omarchy-crashbar"
 
     function notifyCrash(comm: string, pid: string, exe: string, signal: string): void {
       var items = root.bar && typeof root.bar.moduleWidgets === "function"
@@ -181,7 +181,7 @@ Panel {
       if (root.notificationActive) {
         return "Process crashed: " + root.notificationComm + "\nClick to view list/diagnose"
       }
-      return root.undismissedCount + " undismissed crash" + (root.undismissedCount > 1 ? "es" : "") + "\nClick to view list"
+      return root.undismissedCount + " undismissed crash" + (root.undismissedCount > 1 ? "es" : "") + "\nClick for Crashbar"
     }
 
     onPressed: function(b) {
@@ -216,7 +216,7 @@ Panel {
         }
 
         Text {
-          text: "Recent Crashes (" + root.undismissedCount + ")"
+          text: "Crashbar (" + root.undismissedCount + ")"
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle
