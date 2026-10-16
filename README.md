@@ -2,7 +2,7 @@
 
 [![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Shell%20Plugin-blue.svg)](https://omarchy.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.1.1-green.svg)](https://github.com/Andrewx82/omarchy-crashbar)
+[![Version](https://img.shields.io/badge/Version-0.1.2-green.svg)](https://github.com/Andrewx82/omarchy-crashbar)
 
 **Crashbar** brings quiet, non-intrusive process crash alerting and interactive crash history directly to the Omarchy status bar.
 
@@ -30,10 +30,9 @@ Run the following command to add and enable the plugin:
 
 ```bash
 omarchy plugin add https://github.com/Andrewx82/omarchy-crashbar.git --enable
-~/.config/omarchy/plugins/omarchy-crashbar/setup
 ```
 
-The setup script safely configures the user background watcher service and installs the CLI commands to `~/.local/bin/`. Any existing custom unit files or CLI entries are safely preserved with `.backup` copies.
+Crashbar automatically initializes its background watcher service on first load. No secondary setup commands are required. Any existing custom unit files or CLI entries are safely preserved with `.backup` copies.
 
 ---
 

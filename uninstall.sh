@@ -65,8 +65,9 @@ fi
 systemctl --user daemon-reload >/dev/null 2>&1 || true
 systemctl --user restart omarchy-crash-watch.service >/dev/null 2>&1 || true
 
-# 6. Remove plugin directory if it exists
-if [[ -d "$TARGET_DIR" ]]; then
+# 6. Remove plugin directory if called externally
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "$SCRIPT_DIR" != "$TARGET_DIR" && -d "$TARGET_DIR" ]]; then
   rm -rf "$TARGET_DIR"
 fi
 

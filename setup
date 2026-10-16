@@ -10,6 +10,11 @@ LEGACY_SERVICE_FILE="$SYSTEMD_USER_DIR/omarchy-crash-watch.service"
 BACKUP_SERVICE="$SYSTEMD_USER_DIR/omarchy-crash-watch.service.backup"
 WRAPPER_BIN="$BIN_DIR/omarchy-crash-watch"
 
+# Fast-path: if already set up and configured, exit immediately with zero side-effects
+if [[ "${1:-}" != "--force" ]] && [[ -f "$DROPIN_FILE" && -x "$WRAPPER_BIN" && -L "$BIN_DIR/crashbar" ]]; then
+  exit 0
+fi
+
 mkdir -p "$BIN_DIR" "$DROPIN_DIR"
 
 chmod +x "$PLUGIN_DIR/crashbar" "$PLUGIN_DIR/omarchy-crash-watch" "$PLUGIN_DIR/setup" "$PLUGIN_DIR/install.sh"

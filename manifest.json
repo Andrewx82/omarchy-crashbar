@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "omarchy-crashbar",
   "name": "Crashbar",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Andrew",
   "description": "Quiet in-bar crash alerts and interactive undismissed crash history for Omarchy",
   "kinds": [
