@@ -12,6 +12,28 @@ readonly ignore_pattern=${OMARCHY_CRASH_IGNORE:-}
 
 declare -A last_notified
 
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WRAPPER_BIN="$HOME/.local/bin/omarchy-crash-watch"
+
+# Background watchdog: monitor if Crashbar gets uninstalled (e.g. via `omarchy plugin remove`)
+(
+  while [[ -f "$PLUGIN_DIR/manifest.json" ]]; do
+    sleep 2
+  done
+
+  # Plugin directory was removed! Restore stock crash watcher and restart service
+  if [[ -x "$WRAPPER_BIN" ]]; then
+    "$WRAPPER_BIN" --restore >/dev/null 2>&1 || true
+  fi
+  systemctl --user restart omarchy-crash-watch.service >/dev/null 2>&1 || true
+) &
+WATCHDOG_PID=$!
+
+cleanup() {
+  kill "$WATCHDOG_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
 announce() {
   local comm=$1 pid=$2 exe=$3 signal=$4
 
@@ -23,8 +45,8 @@ announce() {
     crashbar add "$comm" "$pid" "$exe" "$signal"
   elif command -v omarchy-crashbar >/dev/null 2>&1; then
     omarchy-crashbar add "$comm" "$pid" "$exe" "$signal"
-  elif [[ -x "$HOME/.config/omarchy/plugins/omarchy-crashbar/crashbar" ]]; then
-    "$HOME/.config/omarchy/plugins/omarchy-crashbar/crashbar" add "$comm" "$pid" "$exe" "$signal"
+  elif [[ -x "$PLUGIN_DIR/crashbar" ]]; then
+    "$PLUGIN_DIR/crashbar" add "$comm" "$pid" "$exe" "$signal"
   fi
 }
 

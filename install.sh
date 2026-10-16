@@ -11,6 +11,10 @@ if [[ "$REPO_DIR" != "$TARGET_DIR" ]]; then
 fi
 
 chmod +x "$TARGET_DIR/setup" "$TARGET_DIR/crashbar" "$TARGET_DIR/omarchy-crash-watch"
+if [[ -f "$TARGET_DIR/uninstall.sh" ]]; then
+  chmod +x "$TARGET_DIR/uninstall.sh"
+fi
+
 "$TARGET_DIR/setup"
 
 # Rescan and enable plugin if omarchy-shell is running

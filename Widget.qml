@@ -18,12 +18,6 @@ Panel {
   property var crashesList: []
 
   readonly property string crashManagerBin: decodeURIComponent(Qt.resolvedUrl("crashbar").toString().replace(/^file:\/\//, ""))
-  readonly property string setupBin: decodeURIComponent(Qt.resolvedUrl("setup").toString().replace(/^file:\/\//, ""))
-
-  Process {
-    id: ensureSetupProc
-    command: [root.setupBin]
-  }
 
   function refresh() {
     if (!statusProc.running) {
@@ -69,7 +63,6 @@ Panel {
   }
 
   Component.onCompleted: {
-    ensureSetupProc.running = true
     root.refresh()
   }
 
