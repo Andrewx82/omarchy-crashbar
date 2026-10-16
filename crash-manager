@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+STATE_DIR = Path.home() / ".local" / "state" / "omarchy"
+STATE_FILE = STATE_DIR / "crashes.json"
+
+
+def ensure_state_dir():
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_signal_name(sig_val):
+    if not sig_val or sig_val == "-":
+        return "CRASH"
+    try:
+        s = int(sig_val)
+        return signal.Signals(s).name
+    except Exception:
+        return str(sig_val)
+
+
+def format_time_ago(ts):
+    diff = max(0, int(time.time()) - int(ts))
+    if diff < 10:
+        return "just now"
+    elif diff < 60:
+        return f"{diff}s ago"
+    elif diff < 3600:
+        return f"{diff // 60}m ago"
+    elif diff < 86400:
+        return f"{diff // 3600}h ago"
+    else:
+        return f"{diff // 86400}d ago"
+
+
+def load_crashes():
+    ensure_state_dir()
+    if not STATE_FILE.exists():
+        return init_from_coredump()
+    try:
+        with open(STATE_FILE, "r") as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                return data
+    except Exception:
+        pass
+    return []
+
+
+def save_crashes(crashes):
+    ensure_state_dir()
+    tmp_file = STATE_FILE.with_suffix(".tmp")
+    with open(tmp_file, "w") as f:
+        json.dump(crashes, f, indent=2)
+    os.replace(tmp_file, STATE_FILE)
+
+
+def notify_shell_crash(comm, pid, exe, sig):
+    try:
+        subprocess.run(
+            [
+                "omarchy-shell",
+                "-q",
+                "omarchy-crashes",
+                "notifyCrash",
+                str(comm),
+                str(pid),
+                str(exe),
+                str(sig),
+            ],
+            check=False,
+            timeout=2,
+        )
+    except Exception:
+        pass
+
+
+def notify_shell_refresh():
+    try:
+        subprocess.run(
+            ["omarchy-shell", "-q", "omarchy-crashes", "refresh"],
+            check=False,
+            timeout=2,
+        )
+    except Exception:
+        pass
+
+
+def init_from_coredump():
+    crashes = []
+    try:
+        proc = subprocess.run(
+            ["coredumpctl", "--json=short", "--reverse", "list", "-n", "5"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            raw = json.loads(proc.stdout)
+            for item in raw:
+                exe = item.get("exe") or "unknown"
+                comm = os.path.basename(exe)
+                pid = str(item.get("pid") or "")
+                sig_val = item.get("sig")
+                sig_name = get_signal_name(sig_val)
+                us_time = item.get("time") or 0
+                ts = int(us_time // 1_000_000) if us_time else int(time.time())
+                crashes.append({
+                    "id": f"{pid}-{ts}",
+                    "comm": comm,
+                    "pid": pid,
+                    "exe": exe,
+                    "signal": sig_name,
+                    "timestamp": ts,
+                    "dismissed": False,
+                })
+    except Exception:
+        pass
+    save_crashes(crashes)
+    return crashes
+
+
+def add_crash(comm, pid, exe, sig, ts=None):
+    crashes = load_crashes()
+    if ts is None:
+        ts = int(time.time())
+    sig_name = get_signal_name(sig)
+    crash_id = f"{pid}-{ts}"
+
+    for c in crashes[:5]:
+        if c.get("pid") == str(pid) and abs(c.get("timestamp", 0) - ts) < 5:
+            return
+
+    new_crash = {
+        "id": crash_id,
+        "comm": comm,
+        "pid": str(pid),
+        "exe": exe,
+        "signal": sig_name,
+        "timestamp": ts,
+        "dismissed": False,
+    }
+    crashes.insert(0, new_crash)
+    crashes = crashes[:50]
+    save_crashes(crashes)
+    notify_shell_crash(comm, pid, exe, sig_name)
+
+
+def list_crashes():
+    crashes = load_crashes()
+    undismissed = [c for c in crashes if not c.get("dismissed", False)]
+    undismissed.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+    recent = undismissed[:5]
+    for c in recent:
+        c["timeAgo"] = format_time_ago(c.get("timestamp", 0))
+
+    output = {
+        "count": len(undismissed),
+        "crashes": recent,
+    }
+    print(json.dumps(output))
+
+
+def dismiss_crash(crash_id):
+    crashes = load_crashes()
+    updated = False
+    for c in crashes:
+        if c.get("id") == crash_id or c.get("pid") == crash_id:
+            c["dismissed"] = True
+            updated = True
+    if updated:
+        save_crashes(crashes)
+        notify_shell_refresh()
+
+
+def dismiss_all():
+    crashes = load_crashes()
+    for c in crashes:
+        c["dismissed"] = True
+    save_crashes(crashes)
+    notify_shell_refresh()
+
+
+def main():
+    if len(sys.argv) < 2:
+        list_crashes()
+        return
+
+    cmd = sys.argv[1]
+    if cmd in ("list", "--list", "status", "--status"):
+        list_crashes()
+    elif cmd in ("add", "record"):
+        if len(sys.argv) < 6:
+            print("Usage: crash-manager add <comm> <pid> <exe> <signal> [timestamp]", file=sys.stderr)
+            sys.exit(1)
+        comm = sys.argv[2]
+        pid = sys.argv[3]
+        exe = sys.argv[4]
+        sig = sys.argv[5]
+        ts = int(sys.argv[6]) if len(sys.argv) > 6 else None
+        add_crash(comm, pid, exe, sig, ts)
+    elif cmd in ("dismiss", "--dismiss"):
+        if len(sys.argv) < 3:
+            print("Usage: crash-manager dismiss <id>", file=sys.stderr)
+            sys.exit(1)
+        dismiss_crash(sys.argv[2])
+    elif cmd in ("dismiss-all", "--dismiss-all", "clear"):
+        dismiss_all()
+    elif cmd in ("init", "--init"):
+        init_from_coredump()
+        list_crashes()
+    elif cmd in ("test-crash", "--test"):
+        add_crash("test-app", "99999", "/usr/bin/test-app", "SIGSEGV")
+    else:
+        print(f"Unknown command: {cmd}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
