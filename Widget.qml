@@ -58,12 +58,22 @@ Panel {
     refresh()
   }
 
+  function cancelNotification() {
+    notificationActive = false
+    notificationTimer.stop()
+    if (root.undismissedCount === 0 && root.opened) {
+      root.close()
+    }
+  }
+
   function dismiss(id) {
+    cancelNotification()
     dismissProc.command = [root.crashManagerBin, "dismiss", id]
     dismissProc.running = true
   }
 
   function dismissAll() {
+    cancelNotification()
     dismissProc.command = [root.crashManagerBin, "dismiss-all"]
     dismissProc.running = true
     root.close()
@@ -126,6 +136,9 @@ Panel {
           if (data.configured !== undefined) {
             root.isConfigured = data.configured
           }
+          if (root.undismissedCount === 0) {
+            root.cancelNotification()
+          }
           if (root.isConfigured && root.undismissedCount === 0 && !root.notificationActive && root.opened) {
             root.close()
           }
@@ -154,10 +167,7 @@ Panel {
     repeat: false
     running: false
     onTriggered: {
-      root.notificationActive = false
-      if (root.undismissedCount === 0 && root.opened) {
-        root.close()
-      }
+      root.cancelNotification()
     }
   }
 
@@ -178,7 +188,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     fontSize: Style.bar.iconFont
-    fixedWidth: root.notificationActive ? -1 : (vertical ? -1 : Style.bar.iconSlot)
+    fixedWidth: root.notificationActive ? -1 : (bar && bar.vertical ? -1 : Style.bar.iconSlot)
     active: root.notificationActive || root.opened || !root.isConfigured
     activeColor: !root.isConfigured ? (bar ? bar.accent : Color.accent) : (bar ? bar.urgent : Color.urgent)
     useActiveColor: true
@@ -466,7 +476,7 @@ Panel {
           bordered: false
           enabled: !deactivateActionProc.running
           onClicked: {
-            deactivateActionProc.command = [root.uninstallBin]
+            deactivateActionProc.command = [root.uninstallBin, "--deactivate"]
             deactivateActionProc.running = true
           }
         }

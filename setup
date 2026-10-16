@@ -6,6 +6,7 @@ BIN_DIR="$HOME/.local/bin"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 DROPIN_DIR="$SYSTEMD_USER_DIR/omarchy-crash-watch.service.d"
 DROPIN_FILE="$DROPIN_DIR/crashbar.conf"
+DROPIN_BACKUP="$DROPIN_FILE.omarchy-crashbar-backup"
 LEGACY_SERVICE_FILE="$SYSTEMD_USER_DIR/omarchy-crash-watch.service"
 LEGACY_SERVICE_BACKUP="$LEGACY_SERVICE_FILE.omarchy-crashbar-backup"
 WRAPPER_BIN="$BIN_DIR/omarchy-crash-watch"
@@ -13,9 +14,11 @@ WRAPPER_BACKUP="$WRAPPER_BIN.omarchy-crashbar-backup"
 
 readonly CRASHBAR_SIGNATURE="OMARCHY_CRASHBAR_MANAGED_FILE_v1"
 
-# Fast-path: if already set up and configured, exit immediately with zero side-effects
+# Fast-path: if already set up and configured with Crashbar signature, exit immediately
 if [[ "${1:-}" != "--force" ]] && [[ -f "$DROPIN_FILE" && -x "$WRAPPER_BIN" && -L "$BIN_DIR/crashbar" ]]; then
-  exit 0
+  if grep -qF "$CRASHBAR_SIGNATURE" "$DROPIN_FILE" 2>/dev/null && grep -qF "$CRASHBAR_SIGNATURE" "$WRAPPER_BIN" 2>/dev/null; then
+    exit 0
+  fi
 fi
 
 mkdir -p "$BIN_DIR" "$DROPIN_DIR"
@@ -78,6 +81,7 @@ set -uo pipefail
 PLUGIN_DIR="${HOME}/.config/omarchy/plugins/omarchy-crashbar"
 DROPIN_FILE="${HOME}/.config/systemd/user/omarchy-crash-watch.service.d/crashbar.conf"
 DROPIN_DIR="${HOME}/.config/systemd/user/omarchy-crash-watch.service.d"
+DROPIN_BACKUP="${DROPIN_FILE}.omarchy-crashbar-backup"
 LEGACY_SERVICE_BACKUP="${HOME}/.config/systemd/user/omarchy-crash-watch.service.omarchy-crashbar-backup"
 LEGACY_SERVICE_FILE="${HOME}/.config/systemd/user/omarchy-crash-watch.service"
 WRAPPER_BIN="${HOME}/.local/bin/omarchy-crash-watch"
@@ -86,8 +90,16 @@ WRAPPER_BACKUP="${WRAPPER_BIN}.omarchy-crashbar-backup"
 readonly CRASHBAR_SIGNATURE="OMARCHY_CRASHBAR_MANAGED_FILE_v1"
 
 restore_stock() {
-  # 1. Remove systemd drop-in override
-  rm -f "$DROPIN_FILE"
+  # 1. Clean up systemd drop-in override and restore user's original drop-in if backed up
+  if [[ -e "$DROPIN_FILE" || -L "$DROPIN_FILE" ]]; then
+    if grep -qF "$CRASHBAR_SIGNATURE" "$DROPIN_FILE" 2>/dev/null; then
+      rm -f "$DROPIN_FILE"
+    fi
+  fi
+  if [[ -e "$DROPIN_BACKUP" || -L "$DROPIN_BACKUP" ]]; then
+    rm -f "$DROPIN_FILE"
+    mv -f "$DROPIN_BACKUP" "$DROPIN_FILE"
+  fi
   rmdir "$DROPIN_DIR" 2>/dev/null || true
 
   # 2. Restore user's original service file if backed up
@@ -139,7 +151,19 @@ WRAPPER_EOF
 
 chmod +x "$WRAPPER_BIN"
 
-# 4. Configure systemd user drop-in override (leaves stock unit untouched)
+# 4. Safely configure systemd user drop-in override (leaves stock unit untouched)
+mkdir -p "$DROPIN_DIR"
+if [[ -e "$DROPIN_FILE" || -L "$DROPIN_FILE" ]]; then
+  if ! grep -qF "$CRASHBAR_SIGNATURE" "$DROPIN_FILE" 2>/dev/null; then
+    if [[ ! -e "$DROPIN_BACKUP" && ! -L "$DROPIN_BACKUP" ]]; then
+      echo "Preserving existing user $DROPIN_FILE to $DROPIN_BACKUP"
+      cp -P "$DROPIN_FILE" "$DROPIN_BACKUP"
+    fi
+  fi
+  # CRITICAL: Always unlink DROPIN_FILE before writing to avoid writing through an existing symlink
+  rm -f "$DROPIN_FILE"
+fi
+
 cat > "$DROPIN_FILE" <<'UNIT_EOF'
 # OMARCHY_CRASHBAR_MANAGED_FILE_v1
 [Service]

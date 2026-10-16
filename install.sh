@@ -15,8 +15,6 @@ if [[ -f "$TARGET_DIR/uninstall.sh" ]]; then
   chmod +x "$TARGET_DIR/uninstall.sh"
 fi
 
-"$TARGET_DIR/setup"
-
 # Rescan and enable plugin if omarchy-shell is running
 if command -v omarchy-shell >/dev/null 2>&1; then
   omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true

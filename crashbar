@@ -156,7 +156,18 @@ def add_crash(comm, pid, exe, sig, ts=None):
 def is_configured():
     dropin = Path.home() / ".config" / "systemd" / "user" / "omarchy-crash-watch.service.d" / "crashbar.conf"
     wrapper = Path.home() / ".local" / "bin" / "omarchy-crash-watch"
-    return dropin.is_file() and wrapper.is_file()
+    if not (dropin.is_file() and wrapper.is_file()):
+        return False
+    try:
+        with open(dropin, "r") as f:
+            if "OMARCHY_CRASHBAR_MANAGED_FILE_v1" not in f.read():
+                return False
+        with open(wrapper, "r") as f:
+            if "OMARCHY_CRASHBAR_MANAGED_FILE_v1" not in f.read():
+                return False
+        return True
+    except Exception:
+        return False
 
 
 def list_crashes():

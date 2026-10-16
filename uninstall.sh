@@ -6,6 +6,7 @@ BIN_DIR="$HOME/.local/bin"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 DROPIN_DIR="$SYSTEMD_USER_DIR/omarchy-crash-watch.service.d"
 DROPIN_FILE="$DROPIN_DIR/crashbar.conf"
+DROPIN_BACKUP="$DROPIN_FILE.omarchy-crashbar-backup"
 LEGACY_SERVICE_FILE="$SYSTEMD_USER_DIR/omarchy-crash-watch.service"
 LEGACY_SERVICE_BACKUP="$LEGACY_SERVICE_FILE.omarchy-crashbar-backup"
 WRAPPER_BIN="$BIN_DIR/omarchy-crash-watch"
@@ -13,15 +14,30 @@ WRAPPER_BACKUP="$WRAPPER_BIN.omarchy-crashbar-backup"
 
 readonly CRASHBAR_SIGNATURE="OMARCHY_CRASHBAR_MANAGED_FILE_v1"
 
+DEACTIVATE_ONLY=0
+if [[ "${1:-}" == "--deactivate" || "${1:-}" == "--keep-plugin" ]]; then
+  DEACTIVATE_ONLY=1
+fi
+
 echo "Uninstalling Crashbar and restoring stock Omarchy crash watcher..."
 
-# 1. Disable the plugin in omarchy-shell
-if command -v omarchy >/dev/null 2>&1; then
+# 1. Disable the plugin in omarchy-shell (unless deactivating from UI)
+if (( ! DEACTIVATE_ONLY )) && command -v omarchy >/dev/null 2>&1; then
   omarchy plugin disable omarchy-crashbar >/dev/null 2>&1 || true
 fi
 
 # 2. Restore systemd service configuration
-rm -f "$DROPIN_FILE"
+if [[ -e "$DROPIN_FILE" || -L "$DROPIN_FILE" ]]; then
+  if grep -qF "$CRASHBAR_SIGNATURE" "$DROPIN_FILE" 2>/dev/null; then
+    rm -f "$DROPIN_FILE"
+  fi
+fi
+
+if [[ -e "$DROPIN_BACKUP" || -L "$DROPIN_BACKUP" ]]; then
+  echo "Restoring original $DROPIN_FILE from backup..."
+  rm -f "$DROPIN_FILE"
+  mv -f "$DROPIN_BACKUP" "$DROPIN_FILE"
+fi
 rmdir "$DROPIN_DIR" 2>/dev/null || true
 
 if [[ -e "$LEGACY_SERVICE_BACKUP" || -L "$LEGACY_SERVICE_BACKUP" ]]; then
@@ -63,9 +79,9 @@ fi
 systemctl --user daemon-reload >/dev/null 2>&1 || true
 systemctl --user restart omarchy-crash-watch.service >/dev/null 2>&1 || true
 
-# 6. Remove plugin directory if called externally
+# 6. Remove plugin directory if called externally (and not deactivating from UI)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ "$SCRIPT_DIR" != "$TARGET_DIR" && -d "$TARGET_DIR" ]]; then
+if (( ! DEACTIVATE_ONLY )) && [[ "$SCRIPT_DIR" != "$TARGET_DIR" && -d "$TARGET_DIR" ]]; then
   rm -rf "$TARGET_DIR"
 fi
 

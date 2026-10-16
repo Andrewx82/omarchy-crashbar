@@ -2,7 +2,7 @@
 
 [![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Shell%20Plugin-blue.svg)](https://omarchy.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.1.3-green.svg)](https://github.com/Andrewx82/omarchy-crashbar)
+[![Version](https://img.shields.io/badge/Version-0.1.4-green.svg)](https://github.com/Andrewx82/omarchy-crashbar)
 
 **Crashbar** brings quiet, non-intrusive process crash alerting and interactive crash history directly to the Omarchy status bar.
 
