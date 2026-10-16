@@ -153,6 +153,12 @@ def add_crash(comm, pid, exe, sig, ts=None):
     notify_shell_crash(comm, pid, exe, sig_name)
 
 
+def is_configured():
+    dropin = Path.home() / ".config" / "systemd" / "user" / "omarchy-crash-watch.service.d" / "crashbar.conf"
+    wrapper = Path.home() / ".local" / "bin" / "omarchy-crash-watch"
+    return dropin.is_file() and wrapper.is_file()
+
+
 def list_crashes():
     crashes = load_crashes()
     undismissed = [c for c in crashes if not c.get("dismissed", False)]
@@ -164,6 +170,7 @@ def list_crashes():
     output = {
         "count": len(undismissed),
         "crashes": recent,
+        "configured": is_configured(),
     }
     print(json.dumps(output))
 

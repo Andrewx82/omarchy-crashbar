@@ -25,43 +25,49 @@ if [[ -f "$PLUGIN_DIR/uninstall.sh" ]]; then
   chmod +x "$PLUGIN_DIR/uninstall.sh"
 fi
 
-# 1. Safely install CLI symlinks, preserving any existing user files with dedicated backup extension
+# 1. Safely install CLI symlinks, preserving any existing user files or symlinks without dereferencing
 for bin_name in crashbar omarchy-crashbar; do
   target="$BIN_DIR/$bin_name"
   target_backup="$target.omarchy-crashbar-backup"
   if [[ -e "$target" || -L "$target" ]]; then
-    # If it's already a symlink pointing to this plugin's crashbar, leave it
-    if [[ "$(readlink -f "$target" 2>/dev/null || true)" != "$PLUGIN_DIR/crashbar" ]]; then
-      echo "Preserving existing $target to $target_backup"
-      cp -p "$target" "$target_backup"
+    # If it is not already our symlink pointing to this plugin, back it up
+    if [[ "$(readlink "$target" 2>/dev/null || true)" != "$PLUGIN_DIR/crashbar" ]]; then
+      if [[ ! -e "$target_backup" && ! -L "$target_backup" ]]; then
+        echo "Preserving existing $target to $target_backup"
+        cp -P "$target" "$target_backup"
+      fi
     fi
+    # Always unlink before symlinking so existing symlink targets are never modified
+    rm -f "$target"
   fi
   ln -sf "$PLUGIN_DIR/crashbar" "$target"
 done
 
-# 2. Preserve any existing ~/.config/systemd/user/omarchy-crash-watch.service
-if [[ -f "$LEGACY_SERVICE_FILE" ]]; then
+# 2. Preserve any existing ~/.config/systemd/user/omarchy-crash-watch.service without dereferencing
+if [[ -e "$LEGACY_SERVICE_FILE" || -L "$LEGACY_SERVICE_FILE" ]]; then
   if grep -qF "$CRASHBAR_SIGNATURE" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
     # Previously created by Crashbar; safe to clean up in favor of drop-in
     rm -f "$LEGACY_SERVICE_FILE"
   else
-    # User's own service file: safely back it up before moving aside
-    if [[ ! -f "$LEGACY_SERVICE_BACKUP" ]]; then
+    # User's own service file: safely back it up as-is (preserving symlinks) before moving aside
+    if [[ ! -e "$LEGACY_SERVICE_BACKUP" && ! -L "$LEGACY_SERVICE_BACKUP" ]]; then
       echo "Preserving existing user $LEGACY_SERVICE_FILE to $LEGACY_SERVICE_BACKUP"
-      cp -p "$LEGACY_SERVICE_FILE" "$LEGACY_SERVICE_BACKUP"
+      cp -P "$LEGACY_SERVICE_FILE" "$LEGACY_SERVICE_BACKUP"
     fi
     rm -f "$LEGACY_SERVICE_FILE"
   fi
 fi
 
-# 3. Safely install wrapper into ~/.local/bin/omarchy-crash-watch
+# 3. Safely install wrapper into ~/.local/bin/omarchy-crash-watch without writing through existing symlinks
 if [[ -e "$WRAPPER_BIN" || -L "$WRAPPER_BIN" ]]; then
   if ! grep -qF "$CRASHBAR_SIGNATURE" "$WRAPPER_BIN" 2>/dev/null; then
-    if [[ ! -f "$WRAPPER_BACKUP" ]]; then
+    if [[ ! -e "$WRAPPER_BACKUP" && ! -L "$WRAPPER_BACKUP" ]]; then
       echo "Preserving existing user $WRAPPER_BIN to $WRAPPER_BACKUP"
-      cp -p "$WRAPPER_BIN" "$WRAPPER_BACKUP"
+      cp -P "$WRAPPER_BIN" "$WRAPPER_BACKUP"
     fi
   fi
+  # CRITICAL: Always unlink WRAPPER_BIN before writing to avoid writing through an existing symlink
+  rm -f "$WRAPPER_BIN"
 fi
 
 cat > "$WRAPPER_BIN" <<'WRAPPER_EOF'
@@ -85,9 +91,10 @@ restore_stock() {
   rmdir "$DROPIN_DIR" 2>/dev/null || true
 
   # 2. Restore user's original service file if backed up
-  if [[ -f "$LEGACY_SERVICE_BACKUP" ]]; then
+  if [[ -e "$LEGACY_SERVICE_BACKUP" || -L "$LEGACY_SERVICE_BACKUP" ]]; then
+    rm -f "$LEGACY_SERVICE_FILE"
     mv -f "$LEGACY_SERVICE_BACKUP" "$LEGACY_SERVICE_FILE"
-  elif [[ -f "$LEGACY_SERVICE_FILE" ]] && grep -qF "$CRASHBAR_SIGNATURE" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
+  elif [[ -e "$LEGACY_SERVICE_FILE" || -L "$LEGACY_SERVICE_FILE" ]] && grep -qF "$CRASHBAR_SIGNATURE" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
     rm -f "$LEGACY_SERVICE_FILE"
   fi
 
@@ -98,14 +105,15 @@ restore_stock() {
     if [[ -L "$target" ]] && [[ "$(readlink "$target" 2>/dev/null)" == *omarchy-crashbar* ]]; then
       rm -f "$target"
     fi
-    if [[ -f "$target_backup" ]]; then
+    if [[ -e "$target_backup" || -L "$target_backup" ]]; then
+      rm -f "$target"
       mv -f "$target_backup" "$target"
     fi
   done
 
   # 4. Remove this wrapper and restore user's original omarchy-crash-watch if backed up
   rm -f "$WRAPPER_BIN"
-  if [[ -f "$WRAPPER_BACKUP" ]]; then
+  if [[ -e "$WRAPPER_BACKUP" || -L "$WRAPPER_BACKUP" ]]; then
     mv -f "$WRAPPER_BACKUP" "$WRAPPER_BIN"
   fi
 

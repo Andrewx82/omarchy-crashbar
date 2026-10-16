@@ -24,10 +24,11 @@ fi
 rm -f "$DROPIN_FILE"
 rmdir "$DROPIN_DIR" 2>/dev/null || true
 
-if [[ -f "$LEGACY_SERVICE_BACKUP" ]]; then
+if [[ -e "$LEGACY_SERVICE_BACKUP" || -L "$LEGACY_SERVICE_BACKUP" ]]; then
   echo "Restoring original $LEGACY_SERVICE_FILE from backup..."
+  rm -f "$LEGACY_SERVICE_FILE"
   mv -f "$LEGACY_SERVICE_BACKUP" "$LEGACY_SERVICE_FILE"
-elif [[ -f "$LEGACY_SERVICE_FILE" ]] && grep -qF "$CRASHBAR_SIGNATURE" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
+elif [[ -e "$LEGACY_SERVICE_FILE" || -L "$LEGACY_SERVICE_FILE" ]] && grep -qF "$CRASHBAR_SIGNATURE" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
   echo "Removing Crashbar legacy service file..."
   rm -f "$LEGACY_SERVICE_FILE"
 fi
@@ -39,18 +40,22 @@ for name in crashbar omarchy-crashbar; do
   if [[ -L "$target" ]] && [[ "$(readlink "$target" 2>/dev/null)" == *omarchy-crashbar* ]]; then
     rm -f "$target"
   fi
-  if [[ -f "$target_backup" ]]; then
+  if [[ -e "$target_backup" || -L "$target_backup" ]]; then
     echo "Restoring original $target from backup..."
+    rm -f "$target"
     mv -f "$target_backup" "$target"
   fi
 done
 
 # 4. Remove self-healing wrapper and restore original omarchy-crash-watch binary if backed up
-if [[ -f "$WRAPPER_BIN" ]] && grep -qF "$CRASHBAR_SIGNATURE" "$WRAPPER_BIN" 2>/dev/null; then
-  rm -f "$WRAPPER_BIN"
+if [[ -e "$WRAPPER_BIN" || -L "$WRAPPER_BIN" ]]; then
+  if grep -qF "$CRASHBAR_SIGNATURE" "$WRAPPER_BIN" 2>/dev/null; then
+    rm -f "$WRAPPER_BIN"
+  fi
 fi
-if [[ -f "$WRAPPER_BACKUP" ]]; then
+if [[ -e "$WRAPPER_BACKUP" || -L "$WRAPPER_BACKUP" ]]; then
   echo "Restoring original $WRAPPER_BIN from backup..."
+  rm -f "$WRAPPER_BIN"
   mv -f "$WRAPPER_BACKUP" "$WRAPPER_BIN"
 fi
 

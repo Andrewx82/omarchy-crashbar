@@ -2,7 +2,7 @@
 
 [![Omarchy Plugin](https://img.shields.io/badge/Omarchy-Shell%20Plugin-blue.svg)](https://omarchy.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.1.2-green.svg)](https://github.com/Andrewx82/omarchy-crashbar)
+[![Version](https://img.shields.io/badge/Version-0.1.3-green.svg)](https://github.com/Andrewx82/omarchy-crashbar)
 
 **Crashbar** brings quiet, non-intrusive process crash alerting and interactive crash history directly to the Omarchy status bar.
 
@@ -24,15 +24,21 @@ Instead of disruptive desktop popup toasts in the corner of your screen, crash a
 
 ## Installation
 
-### Standard Installation (Single Command)
+### Standard Omarchy Plugin Installation (Single Command)
 
-Run the following command to add, enable, and configure Crashbar:
+Add and enable the plugin with a single standard command:
 
 ```bash
-omarchy plugin add https://github.com/Andrewx82/omarchy-crashbar.git --enable && ~/.config/omarchy/plugins/omarchy-crashbar/setup
+omarchy plugin add https://github.com/Andrewx82/omarchy-crashbar.git --enable
 ```
 
-This single command clones and enables the status bar widget, safely configures the background watcher drop-in override, and links the CLI tools. Any existing custom user service files or CLI entries are safely preserved with `.omarchy-crashbar-backup` copies.
+Upon installation, Crashbar appears on the left side of your Omarchy status bar (`󱚡`). Clicking the icon presents an activation card to complete setup with explicit user consent.
+
+Alternatively, you can run setup directly from the terminal if preferred:
+
+```bash
+~/.config/omarchy/plugins/omarchy-crashbar/setup
+```
 
 ---
 

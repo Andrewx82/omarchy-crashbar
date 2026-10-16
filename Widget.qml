@@ -16,13 +16,24 @@ Panel {
   property int notificationRemainingSec: 30
   property int undismissedCount: 0
   property var crashesList: []
+  property bool isConfigured: true
 
   readonly property string crashManagerBin: decodeURIComponent(Qt.resolvedUrl("crashbar").toString().replace(/^file:\/\//, ""))
   readonly property string setupBin: decodeURIComponent(Qt.resolvedUrl("setup").toString().replace(/^file:\/\//, ""))
+  readonly property string uninstallBin: decodeURIComponent(Qt.resolvedUrl("uninstall.sh").toString().replace(/^file:\/\//, ""))
 
   Process {
-    id: ensureSetupProc
-    command: ["/bin/sh", "-c", "test -f \"$HOME/.config/systemd/user/omarchy-crash-watch.service.d/crashbar.conf\" && test -x \"$HOME/.local/bin/omarchy-crash-watch\" || \"" + root.setupBin + "\""]
+    id: setupActionProc
+    onExited: function(exitCode) {
+      root.refresh()
+    }
+  }
+
+  Process {
+    id: deactivateActionProc
+    onExited: function(exitCode) {
+      root.refresh()
+    }
   }
 
   function refresh() {
@@ -69,7 +80,6 @@ Panel {
   }
 
   Component.onCompleted: {
-    ensureSetupProc.running = true
     root.refresh()
   }
 
@@ -113,7 +123,10 @@ Panel {
           var data = JSON.parse(text)
           root.undismissedCount = data.count || 0
           root.crashesList = data.crashes || []
-          if (root.undismissedCount === 0 && !root.notificationActive && root.opened) {
+          if (data.configured !== undefined) {
+            root.isConfigured = data.configured
+          }
+          if (root.isConfigured && root.undismissedCount === 0 && !root.notificationActive && root.opened) {
             root.close()
           }
         } catch (e) {
@@ -156,7 +169,7 @@ Panel {
     onTriggered: root.refresh()
   }
 
-  visible: root.notificationActive || root.undismissedCount > 0
+  visible: !root.isConfigured || root.notificationActive || root.undismissedCount > 0
   implicitWidth: visible ? button.implicitWidth : 0
   implicitHeight: visible ? button.implicitHeight : 0
 
@@ -166,8 +179,8 @@ Panel {
     bar: root.bar
     fontSize: Style.bar.iconFont
     fixedWidth: root.notificationActive ? -1 : (vertical ? -1 : Style.bar.iconSlot)
-    active: root.notificationActive || root.opened
-    activeColor: bar ? bar.urgent : Color.urgent
+    active: root.notificationActive || root.opened || !root.isConfigured
+    activeColor: !root.isConfigured ? (bar ? bar.accent : Color.accent) : (bar ? bar.urgent : Color.urgent)
     useActiveColor: true
 
     text: {
@@ -178,6 +191,9 @@ Panel {
     }
 
     tooltipText: {
+      if (!root.isConfigured) {
+        return "Crashbar (Setup Required)\nClick to complete setup"
+      }
       if (root.notificationActive) {
         return "Process crashed: " + root.notificationComm + "\nClick to view list/diagnose"
       }
@@ -216,7 +232,7 @@ Panel {
         }
 
         Text {
-          text: "Crashbar (" + root.undismissedCount + ")"
+          text: !root.isConfigured ? "Crashbar Setup" : ("Crashbar (" + root.undismissedCount + ")")
           color: root.barForeground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.subtitle
@@ -228,7 +244,7 @@ Panel {
         }
 
         Button {
-          visible: root.undismissedCount > 0
+          visible: root.isConfigured && root.undismissedCount > 0
           text: "Dismiss All"
           iconText: "✕"
           fontSize: Style.font.caption
@@ -239,9 +255,64 @@ Panel {
         }
       }
 
+      // Setup Card (shown if setup has not been run yet)
+      BorderSurface {
+        visible: !root.isConfigured
+        width: parent.width
+        implicitHeight: setupCol.implicitHeight + Style.space(20)
+        radius: Style.cornerRadius
+        color: Style.hoverFillFor(root.barForeground, root.barForeground)
+        borderSpec: Border.flat(Color.accent, 1)
+
+        Column {
+          id: setupCol
+          anchors.fill: parent
+          anchors.margins: Style.space(10)
+          spacing: Style.space(8)
+
+          Text {
+            text: "Activate Crashbar"
+            color: root.barForeground
+            font.bold: true
+            font.pixelSize: Style.font.subtitle
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          }
+
+          Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: "Replaces intrusive desktop notification popups with quiet in-bar alerts and 1-click AI diagnosis. Click below to safely configure the watcher service and CLI tools (all existing configurations are backed up)."
+            color: root.barForeground
+            opacity: 0.85
+            font.pixelSize: Style.font.caption
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          }
+
+          RowLayout {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Button {
+              text: setupActionProc.running ? "Activating..." : "Finish Setup & Activate"
+              iconText: "󰑓"
+              accent: Color.accent
+              bordered: true
+              fontSize: Style.font.caption
+              horizontalPadding: Style.space(12)
+              verticalPadding: Style.space(6)
+              enabled: !setupActionProc.running
+              onClicked: {
+                setupActionProc.command = [root.setupBin]
+                setupActionProc.running = true
+              }
+            }
+          }
+        }
+      }
+
       // Empty state
       Item {
-        visible: root.crashesList.length === 0
+        visible: root.isConfigured && root.crashesList.length === 0
         width: parent.width
         implicitHeight: Style.space(40)
 
@@ -369,6 +440,34 @@ Panel {
                 }
               }
             }
+          }
+        }
+      }
+
+      // Footer status & deactivation row
+      RowLayout {
+        width: parent.width
+        visible: root.isConfigured
+        spacing: Style.space(8)
+
+        Text {
+          text: "● Watcher Active"
+          color: Color.active
+          font.pixelSize: Style.font.caption
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        }
+
+        Item { Layout.fillWidth: true }
+
+        Button {
+          text: deactivateActionProc.running ? "Restoring..." : "Deactivate Watcher"
+          fontSize: Style.font.caption
+          opacity: 0.7
+          bordered: false
+          enabled: !deactivateActionProc.running
+          onClicked: {
+            deactivateActionProc.command = [root.uninstallBin]
+            deactivateActionProc.running = true
           }
         }
       }
