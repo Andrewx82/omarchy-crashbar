@@ -7,8 +7,11 @@ SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 DROPIN_DIR="$SYSTEMD_USER_DIR/omarchy-crash-watch.service.d"
 DROPIN_FILE="$DROPIN_DIR/crashbar.conf"
 LEGACY_SERVICE_FILE="$SYSTEMD_USER_DIR/omarchy-crash-watch.service"
-BACKUP_SERVICE="$SYSTEMD_USER_DIR/omarchy-crash-watch.service.backup"
+LEGACY_SERVICE_BACKUP="$LEGACY_SERVICE_FILE.omarchy-crashbar-backup"
 WRAPPER_BIN="$BIN_DIR/omarchy-crash-watch"
+WRAPPER_BACKUP="$WRAPPER_BIN.omarchy-crashbar-backup"
+
+readonly CRASHBAR_SIGNATURE="OMARCHY_CRASHBAR_MANAGED_FILE_v1"
 
 # Fast-path: if already set up and configured, exit immediately with zero side-effects
 if [[ "${1:-}" != "--force" ]] && [[ -f "$DROPIN_FILE" && -x "$WRAPPER_BIN" && -L "$BIN_DIR/crashbar" ]]; then
@@ -22,93 +25,88 @@ if [[ -f "$PLUGIN_DIR/uninstall.sh" ]]; then
   chmod +x "$PLUGIN_DIR/uninstall.sh"
 fi
 
-# Clean up any stale backups of Crashbar's own files
-for b in "$BIN_DIR/omarchy-crash-watch.backup" "$BIN_DIR/crashbar.backup" "$BIN_DIR/omarchy-crashbar.backup" "$BACKUP_SERVICE"; do
-  if [[ -f "$b" ]] && grep -qE "Managed by Crashbar|crashbar|omarchy-crashbar|on status bar" "$b" 2>/dev/null; then
-    rm -f "$b"
-  fi
-done
-
-# 1. Install CLI symlinks while safely preserving genuine third-party binaries
+# 1. Safely install CLI symlinks, preserving any existing user files with dedicated backup extension
 for bin_name in crashbar omarchy-crashbar; do
   target="$BIN_DIR/$bin_name"
+  target_backup="$target.omarchy-crashbar-backup"
   if [[ -e "$target" || -L "$target" ]]; then
+    # If it's already a symlink pointing to this plugin's crashbar, leave it
     if [[ "$(readlink -f "$target" 2>/dev/null || true)" != "$PLUGIN_DIR/crashbar" ]]; then
-      if ! grep -qE "Managed by Crashbar|crashbar|omarchy-crashbar" "$target" 2>/dev/null; then
-        echo "Preserving existing $target to $target.backup"
-        cp -p "$target" "$target.backup"
-      fi
+      echo "Preserving existing $target to $target_backup"
+      cp -p "$target" "$target_backup"
     fi
   fi
   ln -sf "$PLUGIN_DIR/crashbar" "$target"
 done
 
-# 2. Clean up any legacy full service unit override from earlier versions, preserving genuine user configs
+# 2. Preserve any existing ~/.config/systemd/user/omarchy-crash-watch.service
 if [[ -f "$LEGACY_SERVICE_FILE" ]]; then
-  if grep -qE "Managed by Crashbar|on status bar|%h/\.local/bin/omarchy-crash-watch" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
+  if grep -qF "$CRASHBAR_SIGNATURE" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
+    # Previously created by Crashbar; safe to clean up in favor of drop-in
+    rm -f "$LEGACY_SERVICE_FILE"
+  else
+    # User's own service file: safely back it up before moving aside
+    if [[ ! -f "$LEGACY_SERVICE_BACKUP" ]]; then
+      echo "Preserving existing user $LEGACY_SERVICE_FILE to $LEGACY_SERVICE_BACKUP"
+      cp -p "$LEGACY_SERVICE_FILE" "$LEGACY_SERVICE_BACKUP"
+    fi
     rm -f "$LEGACY_SERVICE_FILE"
   fi
 fi
 
-# 3. Install robust self-healing wrapper script into ~/.local/bin/omarchy-crash-watch
+# 3. Safely install wrapper into ~/.local/bin/omarchy-crash-watch
 if [[ -e "$WRAPPER_BIN" || -L "$WRAPPER_BIN" ]]; then
-  if [[ -f "$WRAPPER_BIN" ]] && ! grep -qE "Managed by Crashbar|crashbar|omarchy-crashbar" "$WRAPPER_BIN" 2>/dev/null; then
-    echo "Preserving existing $WRAPPER_BIN to $WRAPPER_BIN.backup"
-    cp -p "$WRAPPER_BIN" "$WRAPPER_BIN.backup"
+  if ! grep -qF "$CRASHBAR_SIGNATURE" "$WRAPPER_BIN" 2>/dev/null; then
+    if [[ ! -f "$WRAPPER_BACKUP" ]]; then
+      echo "Preserving existing user $WRAPPER_BIN to $WRAPPER_BACKUP"
+      cp -p "$WRAPPER_BIN" "$WRAPPER_BACKUP"
+    fi
   fi
 fi
 
 cat > "$WRAPPER_BIN" <<'WRAPPER_EOF'
 #!/bin/bash
-# Managed by Crashbar
+# OMARCHY_CRASHBAR_MANAGED_FILE_v1
 set -uo pipefail
 
 PLUGIN_DIR="${HOME}/.config/omarchy/plugins/omarchy-crashbar"
 DROPIN_FILE="${HOME}/.config/systemd/user/omarchy-crash-watch.service.d/crashbar.conf"
 DROPIN_DIR="${HOME}/.config/systemd/user/omarchy-crash-watch.service.d"
+LEGACY_SERVICE_BACKUP="${HOME}/.config/systemd/user/omarchy-crash-watch.service.omarchy-crashbar-backup"
 LEGACY_SERVICE_FILE="${HOME}/.config/systemd/user/omarchy-crash-watch.service"
-BACKUP_SERVICE="${HOME}/.config/systemd/user/omarchy-crash-watch.service.backup"
+WRAPPER_BIN="${HOME}/.local/bin/omarchy-crash-watch"
+WRAPPER_BACKUP="${WRAPPER_BIN}.omarchy-crashbar-backup"
+
+readonly CRASHBAR_SIGNATURE="OMARCHY_CRASHBAR_MANAGED_FILE_v1"
 
 restore_stock() {
   # 1. Remove systemd drop-in override
   rm -f "$DROPIN_FILE"
   rmdir "$DROPIN_DIR" 2>/dev/null || true
 
-  # 2. If a legacy Crashbar unit file was present, clean it up or restore true backup
-  if [[ -f "$LEGACY_SERVICE_FILE" ]]; then
-    if grep -qE "Managed by Crashbar|on status bar|%h/\.local/bin/omarchy-crash-watch" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
-      if [[ -f "$BACKUP_SERVICE" ]] && ! grep -qE "Managed by Crashbar|on status bar|%h/\.local/bin/omarchy-crash-watch" "$BACKUP_SERVICE" 2>/dev/null; then
-        mv -f "$BACKUP_SERVICE" "$LEGACY_SERVICE_FILE"
-      else
-        rm -f "$LEGACY_SERVICE_FILE"
-      fi
-    fi
+  # 2. Restore user's original service file if backed up
+  if [[ -f "$LEGACY_SERVICE_BACKUP" ]]; then
+    mv -f "$LEGACY_SERVICE_BACKUP" "$LEGACY_SERVICE_FILE"
+  elif [[ -f "$LEGACY_SERVICE_FILE" ]] && grep -qF "$CRASHBAR_SIGNATURE" "$LEGACY_SERVICE_FILE" 2>/dev/null; then
+    rm -f "$LEGACY_SERVICE_FILE"
   fi
-  rm -f "$BACKUP_SERVICE" 2>/dev/null || true
 
-  # 3. Clean up CLI symlinks and restore backups if genuine
+  # 3. Clean up CLI symlinks and restore user backups if present
   for name in crashbar omarchy-crashbar; do
-    target="$HOME/.local/bin/$name"
+    target="${HOME}/.local/bin/${name}"
+    target_backup="${target}.omarchy-crashbar-backup"
     if [[ -L "$target" ]] && [[ "$(readlink "$target" 2>/dev/null)" == *omarchy-crashbar* ]]; then
       rm -f "$target"
     fi
-    if [[ -f "$HOME/.local/bin/$name.backup" ]]; then
-      if grep -qE "Managed by Crashbar|crashbar|omarchy-crashbar" "$HOME/.local/bin/$name.backup" 2>/dev/null; then
-        rm -f "$HOME/.local/bin/$name.backup"
-      else
-        mv -f "$HOME/.local/bin/$name.backup" "$target"
-      fi
+    if [[ -f "$target_backup" ]]; then
+      mv -f "$target_backup" "$target"
     fi
   done
 
-  # 4. Clean up this wrapper and restore original omarchy-crash-watch if genuine
-  rm -f "$HOME/.local/bin/omarchy-crash-watch"
-  if [[ -f "$HOME/.local/bin/omarchy-crash-watch.backup" ]]; then
-    if grep -qE "Managed by Crashbar|crashbar|omarchy-crashbar" "$HOME/.local/bin/omarchy-crash-watch.backup" 2>/dev/null; then
-      rm -f "$HOME/.local/bin/omarchy-crash-watch.backup"
-    else
-      mv -f "$HOME/.local/bin/omarchy-crash-watch.backup" "$HOME/.local/bin/omarchy-crash-watch"
-    fi
+  # 4. Remove this wrapper and restore user's original omarchy-crash-watch if backed up
+  rm -f "$WRAPPER_BIN"
+  if [[ -f "$WRAPPER_BACKUP" ]]; then
+    mv -f "$WRAPPER_BACKUP" "$WRAPPER_BIN"
   fi
 
   systemctl --user daemon-reload >/dev/null 2>&1 || true
@@ -135,7 +133,7 @@ chmod +x "$WRAPPER_BIN"
 
 # 4. Configure systemd user drop-in override (leaves stock unit untouched)
 cat > "$DROPIN_FILE" <<'UNIT_EOF'
-# Managed by Crashbar
+# OMARCHY_CRASHBAR_MANAGED_FILE_v1
 [Service]
 ExecStart=
 ExecStart=%h/.local/bin/omarchy-crash-watch

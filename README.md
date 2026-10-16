@@ -24,15 +24,15 @@ Instead of disruptive desktop popup toasts in the corner of your screen, crash a
 
 ## Installation
 
-### Standard Omarchy Plugin Installation (Recommended)
+### Standard Installation (Single Command)
 
-Run the following command to add and enable the plugin:
+Run the following command to add, enable, and configure Crashbar:
 
 ```bash
-omarchy plugin add https://github.com/Andrewx82/omarchy-crashbar.git --enable
+omarchy plugin add https://github.com/Andrewx82/omarchy-crashbar.git --enable && ~/.config/omarchy/plugins/omarchy-crashbar/setup
 ```
 
-Crashbar automatically initializes its background watcher service on first load. No secondary setup commands are required. Any existing custom unit files or CLI entries are safely preserved with `.backup` copies.
+This single command clones and enables the status bar widget, safely configures the background watcher drop-in override, and links the CLI tools. Any existing custom user service files or CLI entries are safely preserved with `.omarchy-crashbar-backup` copies.
 
 ---
 
