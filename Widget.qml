@@ -475,7 +475,7 @@ Panel {
 
         Text {
           text: "● Watcher Active"
-          color: Color.active
+          color: Color.accent
           font.pixelSize: Style.font.caption
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
         }
