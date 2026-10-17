@@ -79,10 +79,23 @@ Panel {
     root.close()
   }
 
+  function shellQuote(str) {
+    return "'" + String(str || "").replace(/'/g, "'\\''") + "'"
+  }
+
   function diagnose(pid, comm, exe, signal) {
-    var cmd = "omarchy-agent-crash " + (root.bar ? root.bar.shellQuote(pid) : ('"' + pid + '"')) + " " + (root.bar ? root.bar.shellQuote(comm || "unknown") : ('"' + (comm || "unknown") + '"')) + " " + (root.bar ? root.bar.shellQuote(exe || "unknown") : ('"' + (exe || "unknown") + '"')) + " " + (root.bar ? root.bar.shellQuote(signal || "unknown") : ('"' + (signal || "unknown") + '"'))
+    var argv = [
+      "omarchy-agent-crash",
+      String(pid || ""),
+      String(comm || "unknown"),
+      String(exe || "unknown"),
+      String(signal || "unknown")
+    ]
+    var cmd = argv.map(root.shellQuote).join(" ")
     if (root.bar && typeof root.bar.run === "function") {
       root.bar.run(cmd)
+    } else if (typeof Quickshell.execDetached === "function") {
+      Quickshell.execDetached(["bash", "-lc", 'exec "$@"', "bash"].concat(argv))
     } else {
       diagnoseProc.command = ["/bin/sh", "-c", cmd]
       diagnoseProc.running = true
